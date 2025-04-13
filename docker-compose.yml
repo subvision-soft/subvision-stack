@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.3.5
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --metrics.prometheus=true
+      - --accesslog=true
+    ports:
+      - "80:80"
+      - "8080:8080"  # Traefik dashboard and metrics
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik_public
+
+  portainer:
+    image: portainer/portainer-ce:2.27.3-alpine
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    labels:
+      - traefik.http.routers.portainer.priority=100  # Higher priority than frontend
+      - traefik.enable=true
+      - traefik.http.routers.portainer.rule=Host(`portainer.localhost`)
+      - traefik.http.routers.portainer.entrypoints=web
+      - traefik.http.services.portainer.loadbalancer.server.port=9000
+    networks:
+      - traefik_public
+
+  frontend:
+    image: ghcr.io/subvision-soft/subvision:2025.4.1-pre.eb6ce71
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`app.localhost`)
+      - traefik.http.routers.frontend.priority=10  # Lower priority than specific hosts
+      - traefik.http.routers.frontend.entrypoints=web
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+    networks:
+      - traefik_public
+
+  backend-api:
+    image: ghcr.io/subvision-soft/subvision-api:latest
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 2048M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.backend-api.rule=Host(`api.localhost`)
+      - traefik.http.routers.backend-api.entrypoints=web
+      - traefik.http.routers.backend-api.middlewares=strip-api-prefix
+      - traefik.http.middlewares.strip-api-prefix.stripprefix.prefixes=/api
+      - traefik.http.services.backend-api.loadbalancer.server.port=3000
+      - traefik.http.services.backend-api.loadbalancer.healthcheck.path=/health
+      - traefik.http.services.backend-api.loadbalancer.healthcheck.interval=10s
+    networks:
+      - traefik_public
+
+  grafana:
+    image: grafana/grafana-enterprise:11.6.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+    labels:
+      - traefik.http.routers.grafana.priority=100  # Higher priority than frontend
+      - traefik.enable=true
+      - traefik.http.routers.grafana.rule=Host(`grafana.localhost`)
+      - traefik.http.routers.grafana.entrypoints=web
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    networks:
+      - traefik_public
+
+networks:
+  traefik_public:
+    external: true
+volumes:
+  portainer_data:
+  grafana_data:
