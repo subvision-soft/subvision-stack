@@ -36,7 +36,7 @@ services:
     image: ghcr.io/subvision-soft/subvision:2025.4.1-pre.eb6ce71
     labels:
       - traefik.enable=true
-      - traefik.http.routers.frontend.rule=Host(`app.localhost`)
+      - traefik.http.routers.frontend.rule=PathPrefix(`/`)
       - traefik.http.routers.frontend.priority=10  # Lower priority than specific hosts
       - traefik.http.routers.frontend.entrypoints=web
       - traefik.http.services.frontend.loadbalancer.server.port=80
@@ -46,10 +46,9 @@ services:
   backend-api:
     image: ghcr.io/subvision-soft/subvision-api:latest
     deploy:
-      replicas: 2
       resources:
         limits:
-          cpus: '0.4'
+          cpus: '4'
           memory: 2048M
         reservations:
           cpus: '0.1'
@@ -59,8 +58,6 @@ services:
       - traefik.enable=true
       - traefik.http.routers.backend-api.rule=Host(`api.localhost`)
       - traefik.http.routers.backend-api.entrypoints=web
-      - traefik.http.routers.backend-api.middlewares=strip-api-prefix
-      - traefik.http.middlewares.strip-api-prefix.stripprefix.prefixes=/api
       - traefik.http.services.backend-api.loadbalancer.server.port=3000
       - traefik.http.services.backend-api.loadbalancer.healthcheck.path=/health
       - traefik.http.services.backend-api.loadbalancer.healthcheck.interval=10s
